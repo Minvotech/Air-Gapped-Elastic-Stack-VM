@@ -2170,7 +2170,7 @@ fleet() {
   checkhealth
 
   # pull image
-  pullimage "docker.elastic.co/beats/elastic-agent-complete:${VERSION}"
+  pullimage "docker.elastic.co/elastic-agent/elastic-agent:${VERSION}"
 
   # get IP
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -2267,7 +2267,7 @@ services:
   fleet:
     container_name: fleet
     user: root
-    image: docker.elastic.co/beats/elastic-agent:${VERSION}
+    image: docker.elastic.co/elastic-agent/elastic-agent:${VERSION}
     environment:
       - FLEET_SERVER_ENABLE=true
       - FLEET_URL=https://fleet:8220
@@ -2425,7 +2425,7 @@ services:
   fleet:
     container_name: fleet
     user: root
-    image: docker.elastic.co/beats/elastic-agent-complete:${VERSION}
+    image: docker.elastic.co/elastic-agent/elastic-agent:${VERSION}
     environment:
       - FLEET_SERVER_ENABLE=true
       - FLEET_URL=https://fleet:8220
