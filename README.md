@@ -407,6 +407,48 @@ This creates `/home/ubuntu/elasticstack` with full configuration (elasticsearch.
 docker ps
 docker logs <container-name>
 ```
+#......... N O T E .........#
+
+- Deploy elastic-stack from curl -O <https://raw.githubusercontent.com/jlim0930/scripts/master/deploy-elastic.sh>
+>> Final Update Script-v9 :: 
+- download deployment script :
+mkdir /home/ubuntu/elastic-deployment
+cd /home/ubuntu/elastic-deployment
+- ./deploy-elastic.sh stack 9.1.5   " Run script with select Version "	
+( after script is deployed will new dire is created in /home/user/elasticstack contains all configration  kibna.yml - elasticsearch  ssl certificate  )
+- Verifiy containers >> docker ps & check logs to veifiy all container are healthy and working fine
+- deploy Fleet Server >> ./deploy-elastic.sh fleet 8.17.5
+- - >> create token manual from this commadn :
+	 curl -k -X POST "https://localhost:9200/_security/service/elastic/fleet-server/credential/token/token1" -H 'Content-Type: application/json' -u elastic:N5CTb3e444GSNaRRwTuUoKncs
+	 - update fllet-compose.yml to add token in FLEET_SERVER_SERVICE_TOKEN=
+	 & update docker-compose > > 
+	 docker-compose -f /root/elasticstack/fleet-compose.yml up  -d fleet
+- to deploy epr in docker compose and update kibana configration ::
+   * Update docker compose in /home/user/elasticstack/docker-comose.yml
+   * add it ::
+   epr:
+    container_name: epr-1
+    image: docker.elastic.co/package-registry/distribution:9.1.5
+    ports:
+      - 8080:80
+   * Deploy new Update From docker-comose >>
+	   docker-compose -f /root/elasticstack/stack-compose.yml up -d epr
+	 * Verifiy Container epr working and Healthy
+	 * Update Kibana.yml in /root/elasticstack/kibana.yml to add pkgs-registry URL :
+	   xpack.fleet.registryUrl: "http://epr-1:8080"
+	   restart kibana >  docker restart kibana
+	 * Check  Contianers to verifiy everything is working Fine 
+	 = Notes ::
+	 = when  add anew agent from new policy :
+	 url-fleet : <https://ip:8220>
+     = Use this command :
+	 > ./elastic-agent install  --fleet-server-es=https://10.200.3.235:9200 
+	  --fleet-server-service-token=AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuLTE3NTk5NTEwOTU1NzQ6UU52eVRob2RRWHFmRGs5bzdnMlVFQQ
+	    --fleet-server-policy=fleet-server-policy  --fleet-server-es-insecure  --fleet-server-port=8220  --insecure
+
+
+#......... N O T E .........#
+
 
 ### Deploy Fleet Server
 
