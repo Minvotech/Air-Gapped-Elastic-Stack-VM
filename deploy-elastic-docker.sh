@@ -1,5 +1,30 @@
 #!/usr/bin/env bash
+# install docker >> ubuntu v24.4
+# sudo apt install curl apt-transport-https ca-certificates software-properties-common
+# sudo apt install docker.io -y
+# curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+# echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+# apt update
+# sudo apt install docker-ce -y
+# sudo systemctl status docker
+# sudo usermod -aG docker $USER
+# - groupadd docker
+ # -  bashsudo usermod -aG docker $USER
+ # -  sudo usermod -aG docker $USER
+ # -  systemctl daemon-reload
+ # -  systemctl reset-failed docker.service
+ # -  systemctl start docker.socket
+ # -  systemctl start docker
+ # -  docker --version
+ # -  docker ps
+ # - # Download Docker Compose
+# curl -L "<https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$>(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+============================
+# * Download Elastic-agent-linux  & elastic-agent-windows
+# - linux > curl -L -O <https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-9.1.5-linux-x86_64.tar.gz> 
+# - windows >  curl -L -O <https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-9.1.5-windows-x86_64.zip> -OutFile elastic-agent-9.1.5-windows-x86_64.zip
 
+  
 # justin lim <justin@isthecoolest.ninja>
 # version 9.0 - added ldap & frozen tier
 # version 8.0 - added fleet settings
@@ -11,6 +36,7 @@
 # version 3.0 - added minio & snapshots
 # version 2.0 - added monitoring option
 # version 1.0 - 3 node deployment with kibana
+
 
 # $ curl -fsSL https://raw.githubusercontent.com/jlim0930/scripts/master/deploy-elastic.sh -o deploy-elastic.sh
 
