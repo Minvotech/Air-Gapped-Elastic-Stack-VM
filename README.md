@@ -415,14 +415,16 @@ docker logs <container-name>
 mkdir /home/ubuntu/elastic-deployment
 cd /home/ubuntu/elastic-deployment
 - ./deploy-elastic.sh stack 9.1.5   " Run script with select Version "	
-( after script is deployed will new dire is created in /home/user/elasticstack contains all configration  kibna.yml - elasticsearch  ssl certificate  )
+( after script is deployed will new dire is created in /home/user/elasticstack contains all configuration kibana.yml - elasticsearch  ssl certificate  )
 - Verifiy containers >> docker ps & check logs to veifiy all container are healthy and working fine
 - deploy Fleet Server >> ./deploy-elastic.sh fleet 8.17.5
 - - >> create token manual from this commadn :
 	 curl -k -X POST "https://localhost:9200/_security/service/elastic/fleet-server/credential/token/token1" -H 'Content-Type: application/json' -u elastic:N5CTb3e444GSNaRRwTuUoKncs
 	 - update fllet-compose.yml to add token in FLEET_SERVER_SERVICE_TOKEN=
-	 & update docker-compose > > 
-	 docker-compose -f /root/elasticstack/fleet-compose.yml up  -d fleet
+	 & update docker-compose > >
+# first stop & remove container Fleet ::
+> docker stop fleet  & docker rm fleet
+	[ deploy fleet again from fleet-compose ] >>  docker-compose -f /root/elasticstack/fleet-compose.yml up  -d fleet
 - to deploy epr in docker compose and update kibana configration ::
    * Update docker compose in /home/user/elasticstack/docker-comose.yml
    * add it ::
