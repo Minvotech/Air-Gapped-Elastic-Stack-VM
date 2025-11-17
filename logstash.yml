@@ -1,0 +1,15 @@
+log.format: json
+node.name: ${NODE_NAME}
+xpack.management.elasticsearch.hosts: https://es01:9200
+xpack.management.elasticsearch.password: logstash_admin
+xpack.management.elasticsearch.ssl.verification_mode: none
+xpack.management.elasticsearch.username: logstash_admin
+xpack.management.enabled: true
+xpack.management.logstash.poll_interval: 30s
+xpack.management.pipeline.id: '*'
+xpack.monitoring.collection.interval: 10s
+xpack.monitoring.elasticsearch.hosts: https://es01:9200
+xpack.monitoring.elasticsearch.password: logstash_admin
+xpack.monitoring.elasticsearch.ssl.certificate_authority: none
+xpack.monitoring.elasticsearch.username: logstash_admin
+xpack.monitoring.enabled: true #${xpack.monitoring.enabled}
