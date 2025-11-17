@@ -1,0 +1,27 @@
+input {
+  # This will generate test data automatically
+  generator {
+    lines => [
+      '{"message": "Test log entry 1", "level": "INFO", "timestamp": "2024-01-15T10:00:00Z", "service": "test-service"}',
+      '{"message": "Test log entry 2", "level": "ERROR", "timestamp": "2024-01-15T10:01:00Z", "service": "test-service"}',
+      '{"message": "Test log entry 3", "level": "WARN", "timestamp": "2024-01-15T10:02:00Z", "service": "test-service"}'
+    ]
+    count => 3
+    codec => json
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["https://es01:9200"]
+    index => "devops-%{+YYYY.MM.dd}"
+    user => "elastic"
+    password => "dR4AAuz8wudJVQcEuB039X4CY"
+    ssl_enabled => true
+    ssl_verification_mode => "none"
+  }
+
+  stdout {
+    codec => rubydebug
+  }
+}
