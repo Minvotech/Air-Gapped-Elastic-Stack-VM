@@ -1,0 +1,114 @@
+input {
+  kafka {
+    bootstrap_servers => "10.0.31.114:9093,10.0.31.106:9093,10.0.31.247:9093,"10.0.37.43:9093,10.0.37.52:9093,10.0.37.40:9093,10.0.37.41:9093"
+    topics => ["logs.external.ms.json"]
+    group_id => "mcmms.es.consumer"
+    security_protocol => "SSL"
+    ssl_truststore_location => "/usr/share/logstash/config/certs-kafka/kafka-truststore.jks"
+    ssl_truststore_password => "passw0rd" 
+    ssl_keystore_location => "/usr/share/logstash/config/certs-kafka/kafka-keystore-nonprod.jks"
+    ssl_keystore_password => "Admin123"
+    ssl_keystore_type => "JKS"
+    ssl_key_password => "admin"
+    ssl_endpoint_identification_algorithm => ""
+    decorate_events => true
+    enable_auto_commit => false
+    session_timeout_ms => 10000
+    auto_offset_reset => latest
+    max_poll_records => 500
+  }
+}
+ 
+filter {
+  if [event][original]{
+    json {
+      source => "[event][original]"
+      tag_on_failure => ["event_original_json_failure"]
+    }
+  }
+  else if [message] {
+    json {
+      source => "message"
+      tag_on_failure => ["message_json_failure"]
+    }
+  }
+  if "event_original_json_failure" in [tags] or "message_json_failure" in [tags] {
+    drop{}
+  }
+  if [logDetails][payload] and [logDetails][payload] =~ "^{"{
+    json {
+      source => "[logDetails][payload]"
+      target => "[logDetails][payload_obj]"
+      tag_on_failure => ["payload_json_failure"]
+    }
+  }
+  if [logDetails][serviceLogTime] {
+    date {
+      match => ["[logDetails][serviceLogTime]", "ISO8601"]
+      target => "@timestamp"
+      tag_on_failure => ["date_parse_failure"]
+    }
+    mutate {
+      add_field => {
+        "[event][start]"                   => "%{[logDetails][serviceLogTime]}"
+        "[http][request][method]"          => "%{[contextInfo][method]}"
+        "[http][response][status_phrase]"  => "%{[contextInfo][httpStatus]}"
+        "[url][full]"                      => "%{[contectInfo][uri]}"
+      }
+    }
+    mutate {
+      copy => {
+        "[logDetails][serviceName]"  => "[service][name]"
+        "[logDetails][statusCode]"   => "[event][code]"
+        "[logDetails][level]"        => "[log][level]"
+        "[traceInfo][rqUID]"         => "[trace][id]"
+        "[traceInfo][cif]"           => "[user][id]"
+        "[traceInfo][scId]"          => "[labels][scId]"
+      }
+    }
+    mutate {
+      copy => {
+        "[traceInfo][rqUID]"          => "[labels][rqUID]"
+        "[traceInfo][cif]"            => "[labels][cif]"
+      }
+    }
+    if [logDetails][payload_obj][status] {
+      mutate {
+        copy => {
+          "[logDetails][payload_obj][status]" => "[http][response][status_code]"
+        }
+        convert => {
+          "[http][response][status_code]" => "integer"
+        }
+      }
+    }
+    ruby {
+      code => '
+      ctx = event.get("contextInfo")
+      if ctx.is_a?(Hash)
+         headers = ctx["headers"]
+         if headers.is_a?(Hash)
+            headers.each do | hk,hv | 
+                value = hv
+                if hv.is_a?(Array) && hv.length ==1 
+                  value = hv[0]
+                end
+                event.set("[http][request][headers][#{hk}]", value)
+                end
+           end
+       end
+      '
+    }
+  }
+}
+ 
+output {
+  elasticsearch {
+    hosts => ["https://es01:9200"]
+    index => "dev-kafka-test-%{+YYYY.MM.dd}"
+    user => "elastic"
+    password => "tttt"
+    ssl_enabled => true
+    ssl_verification_mode => "none"
+  }
+}
