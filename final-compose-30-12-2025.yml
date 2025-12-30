@@ -1,0 +1,436 @@
+version: "2.2"
+
+services:
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    volumes:
+      - certs:/usr/share/elasticsearch/config/certs
+      - ./temp:/temp
+    user: "0"
+    command: >
+      bash -c '
+        if [ x${ELASTIC_PASSWORD} == x ]; then
+          echo "Set the ELASTIC_PASSWORD environment variable in the .env file";
+          exit 1;
+        elif [ x${KIBANA_PASSWORD} == x ]; then
+          echo "Set the KIBANA_PASSWORD environment variable in the .env file";
+          exit 1;
+        fi;
+        if [ ! -f certs/ca.zip ]; then
+          echo "Creating CA";
+          bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
+          unzip config/certs/ca.zip -d config/certs; unzip config/certs/ca.zip -d /temp/certs;
+        fi;
+        if [ ! -f certs/certs.zip ]; then
+          echo "Creating certs";
+          echo -ne           "instances:\n"          "  - name: es01\n"          "    dns:\n"          "      - es01\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: es02\n"          "    dns:\n"          "      - es02\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: es03\n"          "    dns:\n"          "      - es03\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: kibana\n"          "    dns:\n"          "      - kibana\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: apm\n"          "    dns:\n"          "      - apm\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: entsearch\n"          "    dns:\n"          "      - entsearch\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: fleet\n"          "    dns:\n"          "      - fleet\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          "  - name: minio01\n"          "    dns:\n"          "      - minio01\n"          "      - localhost\n"          "    ip:\n"          "      - 127.0.0.1\n"          > config/certs/instances.yml;
+          bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
+          unzip config/certs/certs.zip -d config/certs; unzip config/certs/certs.zip -d /temp/certs; chmod -R 777 /temp/certs;
+        fi;
+        echo "Setting file permissions"
+        chown -R root:root config/certs;
+        find . -type d -exec chmod 750 \{\} \;;
+        find . -type f -exec chmod 640 \{\} \;;
+        echo "Waiting for Elasticsearch availability";
+        until curl -s --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+        echo "Setting kibana_system password";
+        until curl -s -X POST --cacert config/certs/ca/ca.crt -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
+        echo "All done!";
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f config/certs/es01/es01.crt ]"]
+      interval: 1s
+      timeout: 5s
+      retries: 120
+
+  es01:
+    container_name: es01
+    networks:
+      es_default:
+        aliases:
+          - es01.elastic-dev.alinma.internal
+          - elastic.elastic-dev.alinma.internal
+          - es01
+
+    depends_on:
+      setup:
+        condition: service_healthy
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    labels:
+      co.elastic.logs/module: elasticsearch
+    volumes:
+      - ./ca-f:/usr/share/elasticsearch/config/ca-f
+      - ./ca-2:/usr/share/elasticsearch/config/ca-2
+      - certs:/usr/share/elasticsearch/config/certs
+      - data01:/usr/share/elasticsearch/data
+      - ./temp:/temp
+      - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    ports:
+      - ${ES_PORT}:9200
+    environment:
+      - node.name=es01
+      - ISLAM_PASS=Eslam@1992@25
+      - node.roles=master,data_content,data_hot,ingest,remote_cluster_client,ml,transform
+      - node.attr.data=hot
+      - node.attr.data2=hot
+      - node.attr.zone=zone1
+      - node.attr.zone2=zone1
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es02,es03
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+
+        #- xpack.security.http.ssl.enabled=true
+        #- xpack.security.http.ssl.keystore.path=ca-f/es.dev.alinma.p12
+        #- xpack.security.http.ssl.keystore.password=alinma
+        #- xpack.security.http.ssl.certificate_authorities=ca-f/certnew.cer
+        #- xpack.security.http.ssl.verification_mode=certificate
+        #
+        #config/ca-2/kibana.crt
+        #- SERVER_SSL_KEY=config/ca-2/kibana.key
+
+
+
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=ca-2/kibana.key
+      - xpack.security.http.ssl.certificate=ca-2/kibana.crt
+      - xpack.security.http.ssl.certificate_authorities=ca-2/kibana.crt
+      - xpack.security.http.ssl.verification_mode=certificate
+
+        #- xpack.security.transport.ssl.enabled=true
+        #- xpack.security.transport.ssl.keystore.path=ca-f/es.dev.alinma.p12
+        #- xpack.security.transport.ssl.keystore.password=alinma
+        #- xpack.security.transport.ssl.certificate_authorities=ca-f/certnew.cer
+        #- xpack.security.transport.ssl.verification_mode=certificate
+        #
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es02/es02.key
+      - xpack.security.transport.ssl.certificate=certs/es02/es02.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+        #
+      - xpack.license.self_generated.type=${LICENSE}
+    cpus: ${ELASTIC_CPUS}
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/ca-f/certnew.cer  https://elastic.elastic-dev.alinma.internal:9200  | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    entrypoint: >
+      /bin/bash -c "
+      if [ ! -f /usr/share/elasticsearch/config/elasticsearch.keystore ]; then
+        echo 'Creating Elasticsearch keystore...';
+        bin/elasticsearch-keystore create;
+        echo 'Adding LDAP bind password to keystore...';
+
+        echo 'Keystore created successfully';
+      fi;
+      /usr/local/bin/docker-entrypoint.sh
+      "
+      #echo \$${ISLAM_PASS} | bin/elasticsearch-keystore add --stdin xpack.security.authc.realms.ldap.ldap1.secure_bind_password;
+
+
+  es02:
+    container_name: es02
+    networks:
+      es_default:
+        aliases:
+          - es02.elastic-dev.alinma.internal
+          - elastic.elastic-dev.alinma.internal
+          - es02
+    depends_on:
+      - es01
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    labels:
+      co.elastic.logs/module: elasticsearch
+    volumes:
+      - certs:/usr/share/elasticsearch/config/certs
+      - ./ca-f:/usr/share/elasticsearch/config/ca-f
+      - ./ca-2:/usr/share/elasticsearch/config/ca-2
+      - data02:/usr/share/elasticsearch/data
+      - ./temp:/temp
+      - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    environment:
+      - node.name=es02
+      - ISLAM_PASS=Eslam@1992@25
+      - node.roles=master,data_content,data_hot,ingest,remote_cluster_client,ml,transform
+      - node.attr.data=hot
+      - node.attr.data2=warm
+      - node.attr.zone=zone1
+      - node.attr.zone2=zone2
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es01,es03
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=ca-2/kibana.key
+      - xpack.security.http.ssl.certificate=ca-2/kibana.crt
+      - xpack.security.http.ssl.certificate_authorities=ca-2/kibana.crt
+      - xpack.security.http.ssl.verification_mode=certificate
+
+        #- xpack.security.http.ssl.enabled=true
+        #- xpack.security.http.ssl.keystore.path=ca-f/es.dev.alinma.p12
+        #- xpack.security.http.ssl.keystore.password=alinma
+        #- xpack.security.http.ssl.certificate_authorities=ca-f/certnew.cer
+        #- xpack.security.http.ssl.verification_mode=certificate
+
+
+        #- xpack.security.http.ssl.enabled=true
+        #- xpack.security.http.ssl.key=certs/es02/es02.key
+        #-xpack.security.http.ssl.certificate=certs/es02/es02.crt
+        #- xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+        #- xpack.security.http.ssl.verification_mode=certificate
+
+      - xpack.security.transport.ssl.enabled=true
+        #- xpack.security.transport.ssl.keystore.path=ca-f/es.dev.alinma.p12
+        #- xpack.security.transport.ssl.keystore.password=alinma
+        #- xpack.security.transport.ssl.certificate_authorities=ca-f/certnew.cer
+        #- xpack.security.transport.ssl.verification_mode=certificate
+
+      - xpack.security.transport.ssl.key=certs/es02/es02.key
+      - xpack.security.transport.ssl.certificate=certs/es02/es02.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=${LICENSE}
+    cpus: ${ELASTIC_CPUS}
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/ca-f/certnew.cer  https://elastic.elastic-dev.alinma.internal:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    entrypoint: >
+      /bin/bash -c "
+      if [ ! -f /usr/share/elasticsearch/config/elasticsearch.keystore ]; then
+        echo 'Creating Elasticsearch keystore...';
+        bin/elasticsearch-keystore create;
+        echo 'Adding LDAP bind password to keystore...';
+
+        echo 'Keystore created successfully';
+      fi;
+      /usr/local/bin/docker-entrypoint.sh
+      "
+
+
+  es03:
+    container_name: es03
+    networks:
+      es_default:
+        aliases:
+          - es03.elastic-dev.alinma.internal
+          - elastic.elastic-dev.alinma.internal
+          - es03
+
+    depends_on:
+      - es02
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.1.4
+    labels:
+      co.elastic.logs/module: elasticsearch
+    volumes:
+      - certs:/usr/share/elasticsearch/config/certs
+      - ./ca-f:/usr/share/elasticsearch/config/ca-f
+      - data03:/usr/share/elasticsearch/data
+      - ./temp:/temp
+      - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    environment:
+      - node.name=es03
+      - ISLAM_PASS=Eslam@1992@25
+      - node.roles=master,data_frozen,ingest,remote_cluster_client,ml,transform
+      - xpack.searchable.snapshot.shared_cache.size=20%
+      - node.attr.data=warm
+      - node.attr.data2=cold
+      - node.attr.zone=zone2
+      - node.attr.zone2=zone3
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=es01,es02,es03
+      - discovery.seed_hosts=es01,es02
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.keystore.path=ca-f/es.dev.alinma.p12
+      - xpack.security.http.ssl.keystore.password=alinma
+      - xpack.security.http.ssl.certificate_authorities=ca-f/certnew.cer
+      - xpack.security.http.ssl.verification_mode=certificate
+
+
+        #- xpack.security.http.ssl.enabled=true
+        #- xpack.security.http.ssl.key=certs/es02/es02.key
+        #-xpack.security.http.ssl.certificate=certs/es02/es02.crt
+        #- xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
+        #- xpack.security.http.ssl.verification_mode=certificate
+
+        #- xpack.security.transport.ssl.enabled=true
+        #- xpack.security.transport.ssl.keystore.path=ca-f/es.dev.alinma.p12
+        #- xpack.security.transport.ssl.keystore.password=alinma
+        #- xpack.security.transport.ssl.certificate_authorities=ca-f/certnew.cer
+        #- xpack.security.transport.ssl.verification_mode=certificate
+
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es03/es03.key
+      - xpack.security.transport.ssl.certificate=certs/es03/es03.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=${LICENSE}
+    cpus: ${ELASTIC_CPUS}
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/ca-f/certnew.cer  https://elastic.elastic-dev.alinma.internal:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    entrypoint: >
+      /bin/bash -c "
+      if [ ! -f /usr/share/elasticsearch/config/elasticsearch.keystore ]; then
+        echo 'Creating Elasticsearch keystore...';
+        bin/elasticsearch-keystore create;
+        echo 'Adding LDAP bind password to keystore...';
+
+        echo 'Keystore created successfully';
+      fi;
+      /usr/local/bin/docker-entrypoint.sh
+      "
+  kibana:
+    container_name: kibana
+    networks:
+      es_default:
+        aliases:
+          - kibana.elastic-dev.alinma.internal
+    depends_on:
+      es01:
+        condition: service_healthy
+      es02:
+        condition: service_healthy
+      es03:
+        condition: service_healthy
+    image: docker.elastic.co/kibana/kibana:9.1.4
+    labels:
+      co.elastic.logs/module: kibana
+    volumes:
+      - certs:/usr/share/kibana/config/certs
+      - ./ca-2:/usr/share/kibana/config/ca-2
+      - ./ca:/usr/share/kibana/config/ca
+      - kibanadata:/usr/share/kibana/data
+      - ./temp:/temp
+      - ./kibana.yml:/usr/share/kibana/config/kibana.yml
+    ports:
+      - ${KIBANA_PORT}:5601
+    environment:
+      - SERVERNAME=kibana
+      - SERVERNAME=kibana.elastic-dev.alinma.internal
+      - SERVER_PUBLICBASEURL=https://kibana.elastic-dev.alinma.internal:5601
+      - ELASTICSEARCH_HOSTS=https://elastic.elastic-dev.alinma.internal:9200
+      - ELASTICSEARCH_USERNAME="kibana_system"
+      - ELASTICSEARCH_PASSWORD="tOAt3sgZ13igPt6AVbQRUdplA"
+        #${KIBANA_PASSWORD}
+      - ELASTICSEARCH_SSL_VERIFICATIONMODE=none
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/ca-2/certnew.cer
+      # Server SSL with P12
+      - SERVER_SSL_ENABLED=true
+      - SERVER_SSL_CERTIFICATE=config/ca-2/kibana.crt
+      - SERVER_SSL_KEY=config/ca-2/kibana.key
+
+        #- SERVER_SSL_KEYSTORE_PATH=config/ca-f/elastic-stack.p12
+        #- SERVER_SSL_KEYSTORE_PASSWORD=alinma
+
+     # - SERVER_SSL_ENABLED=true
+     # - SERVER_SSL_CERTIFICATE=config/certs/kibana/kibana.crt
+     # - SERVER_SSL_KEY=config/certs/kibana/kibana.key
+    mem_limit: ${KIBANA_MEM_LIMIT}
+    cpus: ${KIBANA_CPUS}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/ca-2/kibana.crt -I https://kibana.elastic-dev.alinma.internal:5601 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+
+        #- SERVER_SSL_CERTIFICATE=config/certs/kibana/kibana.crt
+        #- SERVER_SSL_KEY=config/certs/kibana/kibana.key
+        #- SERVER_SSL_KEYSTORE_PATH=config/ca-2/es.dev.alinma.p12
+        #- SERVER_SSL_KEYSTORE_PASSWORD=alinma
+        #- SERVER_SSL_KEYSTORE_PASSWORD=alinma
+        #- NODE_TLS_REJECT_UNAUTHORIZED=0
+        #- ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
+        #- SERVER_SSL_ENABLED=true
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  epr:
+    image: docker.elastic.co/package-registry/distribution:9.1.4
+    container_name: epr-1
+    ports:
+      - 8080:80
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.1.4
+    container_name: logstash
+    mem_limit: 8g
+    cpus: 2.0
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+      - "9700:9700"
+    extra_hosts:
+      "urd1bdkafb01.me.alinma.internal": "10.0.31.114"
+      "urd1bdkafz01.me.alinma.internal": "10.0.31.106"
+      "urd1bdkafo01.me.alinma.internal": "10.0.31.247"
+      "es.uat.alinma": "127.0.0.1"
+    environment:
+      - NODE_NAME="logstash"
+      - xpack.monitoring.enabled=true
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - ELASTIC_HOSTS=https://es01:9200
+    volumes:
+      - logstashdata01:/usr/share/logstash/data
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - certs:/usr/share/logstash/config/certs:ro
+      - ./logstash/config/certs-kafka:/usr/share/logstash/config/certs-kafka:ro
+      - ./logstash/config/certs-kafka-uat:/usr/share/logstash/config/certs-kafka-uat:ro
+networks:
+  es_default:
+    external: true
+
+volumes:
+  certs:
+    driver: local
+  data01:
+    driver: local
+  data02:
+    driver: local
+  data03:
+    driver: local
+  kibanadata:
+    driver: local
+  logstashdata01:
+    driver: local
