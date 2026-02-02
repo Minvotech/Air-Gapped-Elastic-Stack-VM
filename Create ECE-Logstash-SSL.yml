@@ -1,0 +1,28 @@
+input {
+  # This will generate test data automatically
+  generator {
+    lines => [
+      '{"message": "Test log entry 1", "level": "INFO", "timestamp": "2024-01-15T10:00:00Z", "service": "test-service"}',
+      '{"message": "Test log entry 2", "level": "ERROR", "timestamp": "2024-01-15T10:01:00Z", "service": "test-service"}',
+      '{"message": "Test log entry 3", "level": "WARN", "timestamp": "2024-01-15T10:02:00Z", "service": "test-service"}'
+    ]
+    count => 3
+    codec => json
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["https://36fbc23e1f894033a5d0f9c3940eb258.10.200.44.249.ip.es.io:9243"]
+    index => "acuative33-%{+YYYY.MM.dd}"
+    user => "elastic"
+    password => "DdBaZqKPPSKbsJH1YC38Zudr"
+    ssl_enabled => true
+    #cacert  => ["/usr/share/logstash/config/certs-ece/ece-ca.crt"]
+    ssl_certificate_authorities => ["/usr/share/logstash/config/certs-ece/ece-ca.crt"]
+    ssl_verification_mode => "full"
+    #ssl_verification_mode => "none"
+
+  } # <--- REQUIRED: Closes the elasticsearch plugin block
+} # <--- REQUIRED: Closes the output block"
+  
