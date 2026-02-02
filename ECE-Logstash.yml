@@ -1,0 +1,13 @@
+api.enabled: true
+api.http.host: 0.0.0.0
+api.http.port: 9600
+log.format: json
+node.name: ${NODE_NAME}
+xpack.management.elasticsearch.hosts: https://36fbc23e1f894033a5d0f9c3940eb258.10.200.44.249.ip.es.io:9243
+xpack.management.elasticsearch.password: DdBaZqKPPSKbsJH1YC38Zudr
+xpack.management.elasticsearch.ssl.certificate_authority: /usr/share/logstash/config/certs-ece/ece-ca.crt
+xpack.management.elasticsearch.ssl.verification_mode: certificate
+xpack.management.elasticsearch.username: elastic
+xpack.management.enabled: true
+xpack.management.logstash.poll_interval: 30s
+xpack.management.pipeline.id: '*'
