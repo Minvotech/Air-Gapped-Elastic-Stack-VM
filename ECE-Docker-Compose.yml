@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  epr:
+    image: localhost:5000/package-registry/distribution:9.2.4
+    container_name: epr-1
+    ports:
+      - "8080:8080" # Fleet/Kibana will look for EPR on this port
+    networks:
+      - es_default
+  logstash:
+    image: localhost:5000/logstash/logstash:9.2.4
+    container_name: logstash
+    mem_limit: 4g
+    cpus: 1.0
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+      - "9700:9700"
+    extra_hosts:
+      - "36fbc23e1f894033a5d0f9c3940eb258.10.200.44.249.ip.es.io:10.200.44.249"
+      #"urd1bdkafo01.me.alinma.internal": "10.0.31.247"
+      # ECE Proxy Link
+    environment:
+      - NODE_NAME="logstash"
+      # - xpack.monitoring.enabled=true
+      # Connection to ECE Deployment
+      - ELASTIC_USER=elastic
+      - ELASTIC_PASSWORD=DdBaZqKPPSKbsJH1YC38Zudr
+      - ELASTIC_HOSTS=https://36fbc23e1f894033a5d0f9c3940eb258.10.200.44.249.ip.es.io:9243
+    volumes:
+      # Data Persistence
+      - logstashdata01:/usr/share/logstash/data
+      # Configs
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+      # Certificates (Kafka & ECE)
+      #- certs:/usr/share/logstash/config/certs:ro
+      - ./logstash/config/certs-kafka:/usr/share/logstash/config/certs-kafka:ro
+      - ./logstash/config/certs-ece:/usr/share/logstash/config/certs-ece:ro
+    networks:
+      - es_default
+
+networks:
+  es_default:
+    external: true
+
+volumes:
+  logstashdata01:
+    driver: local
